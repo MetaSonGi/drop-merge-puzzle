@@ -1,4 +1,13 @@
-# 🍉 드롭 머지 퍼즐
+# 🍉 드롭 머지 퍼즐 | Drop Merge Puzzle
+
+> 수박게임류 과일 합성 — 11단계 진화·콤보  
+> Suika-style fruit merge with 11 evolution stages
+
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=flat-square)](https://metasongi.github.io/drop-merge-puzzle/) ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square)
+
+🌐 **Live:** https://metasongi.github.io/drop-merge-puzzle/
+
+---
 
 수박게임류 머지 퍼즐! 위에서 과일을 떨어뜨려 같은 과일끼리 합성하고,
 체리부터 시작해 **수박**까지 11단계 진화를 노려보세요.
@@ -24,3 +33,9 @@
 
 `index.html`을 브라우저에서 열거나 GitHub Pages로 배포하면 바로 플레이할 수 있습니다.
 외부 의존성(CDN)이 전혀 없어 오프라인에서도 동작합니다.
+
+---
+
+## English Summary
+
+Suika-style fruit merge with 11 evolution stages.
