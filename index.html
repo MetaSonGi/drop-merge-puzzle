@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1b1b3a">
+<title>드롭 머지 퍼즐 🍉</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: radial-gradient(circle at 50% 15%, #3b3b78, #14142b 70%);
+    color:#fff; min-height:100vh; display:flex; justify-content:center;
+    padding:12px 8px 24px; user-select:none; -webkit-user-select:none;
+  }
+  #wrap { width:100%; max-width:440px; }
+  header { text-align:center; margin:6px 0 10px; }
+  header h1 { font-size:24px; letter-spacing:-0.5px; }
+  header p { font-size:12px; opacity:.7; margin-top:2px; }
+  #hud {
+    display:flex; gap:8px; align-items:stretch; margin-bottom:10px;
+  }
+  .stat {
+    flex:1; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15);
+    border-radius:12px; padding:8px 10px; text-align:center;
+  }
+  .stat .label { display:block; font-size:11px; opacity:.65; }
+  .stat .val { display:block; font-size:20px; font-weight:800; }
+  #nextBox {
+    flex:1; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15);
+    border-radius:12px; padding:6px 8px; text-align:center;
+  }
+  #nextBox .label { font-size:11px; opacity:.65; display:block; }
+  #preview { width:52px; height:52px; }
+  #nextName { font-size:12px; font-weight:700; display:block; margin-top:-2px; }
+  #stage {
+    position:relative; border-radius:16px; overflow:hidden;
+    box-shadow:0 12px 40px rgba(0,0,0,.45); border:3px solid rgba(255,255,255,.18);
+  }
+  #game { display:block; width:100%; height:auto; touch-action:none; cursor:crosshair; background:#fff3df; }
+  #combo {
+    position:absolute; top:34%; left:0; right:0; text-align:center; pointer-events:none;
+    font-size:30px; font-weight:900; color:#ff5d00; opacity:0;
+    text-shadow:0 2px 0 #fff, 0 4px 12px rgba(0,0,0,.25);
+  }
+  #combo.show { animation:comboPop 1s ease-out forwards; }
+  @keyframes comboPop {
+    0% { opacity:0; transform:scale(.5); }
+    20% { opacity:1; transform:scale(1.25); }
+    45% { transform:scale(1); }
+    80% { opacity:1; }
+    100% { opacity:0; transform:scale(1.1) translateY(-14px); }
+  }
+  #warn {
+    position:absolute; top:8px; left:0; right:0; text-align:center; pointer-events:none;
+    font-size:15px; font-weight:800; color:#d00000; display:none;
+    text-shadow:0 1px 0 #fff;
+  }
+  #over {
+    position:absolute; inset:0; display:none; flex-direction:column; gap:10px;
+    align-items:center; justify-content:center; text-align:center;
+    background:rgba(20,20,45,.82); backdrop-filter:blur(3px); z-index:5;
+  }
+  #over.show { display:flex; }
+  #over h2 { font-size:30px; }
+  #over .final { font-size:18px; }
+  #over .final b { color:#ffd60a; font-size:26px; }
+  #over .newbest { color:#80ed99; font-weight:800; display:none; }
+  #restart {
+    margin-top:6px; font-size:17px; font-weight:800; color:#1b1b3a;
+    background:linear-gradient(180deg,#ffd60a,#ffb703); border:0; border-radius:14px;
+    padding:12px 34px; cursor:pointer; box-shadow:0 4px 0 #b97b00;
+  }
+  #restart:active { transform:translateY(2px); box-shadow:0 2px 0 #b97b00; }
+  #help {
+    margin-top:10px; font-size:12.5px; line-height:1.7; opacity:.85;
+    background:rgba(255,255,255,.07); border-radius:12px; padding:10px 14px;
+  }
+  #help b { color:#ffd60a; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>🍉 드롭 머지 퍼즐</h1>
+    <p>같은 과일끼리 합쳐서 수박을 만들자!</p>
+  </header>
+  <div id="hud">
+    <div class="stat"><span class="label">점수</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="label">최고 기록</span><span class="val" id="best">0</span></div>
+    <div id="nextBox">
+      <span class="label">다음 과일</span>
+      <canvas id="preview" width="152" height="152"></canvas>
+      <span id="nextName">-</span>
+    </div>
+  </div>
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="warn">⚠️ 위험! <span id="warnT">3.0</span>초</div>
+    <div id="combo"></div>
+    <div id="over">
+      <h2>🍉 게임 오버!</h2>
+      <div class="final">최종 점수 <b id="finalScore">0</b></div>
+      <div class="final" style="font-size:14px;opacity:.8">최고 기록 <span id="finalBest">0</span></div>
+      <div class="newbest" id="newBest">🎉 신기록 달성! 🎉</div>
+      <button id="restart">다시 시작</button>
+    </div>
+  </div>
+  <div id="help">
+    <b>플레이 방법</b><br>
+    ① 화면을 터치/클릭하면 그 위치에서 과일이 떨어져요<br>
+    ② 같은 과일 2개가 닿으면 한 단계 큰 과일로 합성! (체리→…→수박, 11단계)<br>
+    ③ 빨간 점선을 넘은 과일이 3초 버티면 게임 오버<br>
+    ④ 연속 합성으로 콤보 보너스를 노려보세요 🔥
+  </div>
+</div>
+<script>
+"use strict";
+/* ================= 설정 ================= */
+var W = 400, H = 640;          // 논리 게임 영역
+var LINE_Y = 120;              // 경고선 y
+var DROP_Y = 62;               // 낙하 시작 y
+var GRAV = 1500;               // 중력
+var REST = 0.25;               // 반발 계수
+var DROP_CD = 0.45;            // 낙하 쿨다운(초)
+var OVERFLOW_LIMIT = 3;        // 경고선 초과 허용 시간(초)
+var BEST_KEY = "dropMergeBest";
+var TIERS = [
+  {name:"체리",    r:15, color:"#e63946", dark:"#9d0208"},
+  {name:"딸기",    r:20, color:"#ff5d8f", dark:"#c9184a"},
+  {name:"포도",    r:25, color:"#8338ec", dark:"#5a189a"},
+  {name:"귤",      r:31, color:"#ff9e00", dark:"#b5651d"},
+  {name:"오렌지",  r:37, color:"#fb5607", dark:"#9c3d0c"},
+  {name:"사과",    r:44, color:"#ff3b30", dark:"#8d0801"},
+  {name:"배",      r:51, color:"#90be6d", dark:"#4d7c0f"},
+  {name:"복숭아",  r:59, color:"#ffafcc", dark:"#c97b9a"},
+  {name:"파인애플",r:68, color:"#ffd60a", dark:"#a37e00"},
+  {name:"멜론",    r:78, color:"#80ed99", dark:"#2d9e57"},
+  {name:"수박",    r:90, color:"#2d9e57", dark:"#1b4332"}
+];
+
+/* ================= 상태 ================= */
+var fruits = [];      // {x,y,vx,vy,t,r,age,mcd}
+var particles = [];   // {x,y,vx,vy,r,life,max,color}
+var floats = [];      // {x,y,txt,life,color,size}
+var score = 0, best = 0;
+var combo = 0, lastMergeT = -10;
+var curTier = 0, nextTier = 0;
+var aimX = W / 2, dropCd = 0;
+var overflowT = 0, over = false;
+var ctx = null, canvas = null;
+var scoreEl, bestEl, previewCtx, nextNameEl, overEl, warnEl, warnTEl, comboEl;
+
+try { best = parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch(e) { best = 0; }
+
+function rndTier() { return Math.floor(Math.random() * 5); }  // 하위 5단계 중 랜덤
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function nowS() { return performance.now() / 1000; }
+
+/* ================= 오디오 (WebAudio, 외부 파일 없음) ================= */
+var AC = null;
+function audio() {
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { AC = null; }
+  }
+  if (AC && AC.state === "suspended") { try { AC.resume(); } catch (e) {} }
+  return AC;
+}
+function blip(freq, dur) {
+  var ac = audio(); if (!ac) return;
+  try {
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.07, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + (dur || 0.14));
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + (dur || 0.14));
+  } catch (e) {}
+}
+
+/* ================= 점수/이펙트 ================= */
+function addScore(newTier, x, y) {
+  var t = nowS();
+  combo = (t - lastMergeT < 1.5) ? combo + 1 : 1;
+  lastMergeT = t;
+  var mult = 1 + (combo - 1) * 0.2, pts, txt;
+  if (newTier > 10) {           // 수박+수박 합성 보너스
+    pts = Math.round(3000 * mult);
+    txt = "수박 합성! +" + pts.toLocaleString("ko-KR");
+  } else {
+    pts = Math.round((newTier + 1) * (newTier + 1) * 5 * mult);
+    txt = "+" + pts.toLocaleString("ko-KR");
+  }
+  score += pts;
+  floats.push({x:x, y:y - 10, txt:txt, life:1.1, color:"#d00000", size: newTier > 10 ? 22 : 16});
+  if (combo >= 2) showCombo(combo);
+  updateHUD();
+}
+function burst(x, y, color, n) {
+  for (var i = 0; i < n; i++) {
+    var a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 220;
+    particles.push({x:x, y:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 80,
+      r:2 + Math.random()*4, life:0.6 + Math.random()*0.4, max:1, color:color});
+  }
+  if (particles.length > 350) particles.splice(0, particles.length - 350);
+}
+function showCombo(c) {
+  if (!comboEl) return;
+  comboEl.textContent = "콤보 x" + c + " 🔥";
+  comboEl.classList.remove("show");
+  void comboEl.offsetWidth;
+  comboEl.classList.add("show");
+}
+
+/* ================= 물리 ================= */
+function substep(dt) {
+  var i, j, f;
+  for (i = 0; i < fruits.length; i++) {
+    f = fruits[i];
+    f.vy += GRAV * dt;
+    f.x += f.vx * dt; f.y += f.vy * dt;
+    f.age += dt; if (f.mcd > 0) f.mcd -= dt;
+    // 벽
+    if (f.x - f.r < 0)      { f.x = f.r;     f.vx = -f.vx * REST; }
+    if (f.x + f.r > W)      { f.x = W - f.r; f.vx = -f.vx * REST; }
+    // 바닥
+    if (f.y + f.r > H) {
+      f.y = H - f.r;
+      f.vy = -f.vy * REST;
+      f.vx *= 0.985;
+      if (Math.abs(f.vy) < 30) f.vy = 0;
+    }
+  }
+  // 원-원 충돌 (2회 반복 해소)
+  for (var it = 0; it < 2; it++) {
+    for (i = 0; i < fruits.length; i++) {
+      for (j = i + 1; j < fruits.length; j++) {
+        var a = fruits[i], b = fruits[j];
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var rr = a.r + b.r, d2 = dx*dx + dy*dy;
+        if (d2 >= rr*rr || d2 < 1e-6) continue;
+        var dist = Math.sqrt(d2), nx = dx/dist, ny = dy/dist;
+        var overlap = rr - dist;
+        var m1 = a.r*a.r, m2 = b.r*b.r, tm = m1 + m2;
+        // 위치 보정 (질량 가중)
+        var px = nx*overlap*0.8, py = ny*overlap*0.8;
+        a.x -= px*(m2/tm); a.y -= py*(m2/tm);
+        b.x += px*(m1/tm); b.y += py*(m1/tm);
+        // 충격량
+        var rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+        var vn = rvx*nx + rvy*ny;
+        if (vn < 0) {
+          var jimp = -(1 + REST) * vn / (1/m1 + 1/m2);
+          var ix = jimp*nx, iy = jimp*ny;
+          a.vx -= ix/m1; a.vy -= iy/m1;
+          b.vx += ix/m2; b.vy += iy/m2;
+          // 접선 마찰 (살짝)
+          var tx = -ny, ty = nx;
+          var vt = rvx*tx + rvy*ty;
+          var jt = -vt / (1/m1 + 1/m2) * 0.06;
+          a.vx -= jt*tx/m1; a.vy -= jt*ty/m1;
+          b.vx += jt*tx/m2; b.vy += jt*ty/m2;
+        }
+      }
+    }
+  }
+  // 정지 감쇠
+  for (i = 0; i < fruits.length; i++) {
+    f = fruits[i];
+    var sp2 = f.vx*f.vx + f.vy*f.vy;
+    if (sp2 < 120) { f.vx *= 0.88; f.vy *= 0.88; }
+  }
+}
+
+function checkMerges() {
+  var gone = {}, births = [], i, j;
+  for (i = 0; i < fruits.length; i++) {
+    if (gone[i]) continue;
+    var a = fruits[i];
+    if (a.mcd > 0) continue;
+    for (j = i + 1; j < fruits.length; j++) {
+      if (gone[j]) continue;
+      var b = fruits[j];
+      if (b.mcd > 0 || a.t !== b.t) continue;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var rr = a.r + b.r;
+      if (dx*dx + dy*dy < (rr + 1) * (rr + 1)) {
+        gone[i] = true; gone[j] = true;
+        var nt = a.t + 1;
+        var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (nt <= 10) {
+          births.push({x:mx, y:my, vx:(a.vx+b.vx)/2, vy:(a.vy+b.vy)/2,
+            t:nt, r:TIERS[nt].r, age:0, mcd:0.25});
+          addScore(nt, mx, my);
+        } else {
+          addScore(99, mx, my);   // 수박+수박 → 보너스 후 소멸
+        }
+        burst(mx, my, TIERS[a.t].color, 12 + a.t * 3);
+        blip(380 + a.t * 70, 0.16);
+        break;
+      }
+    }
+  }
+  var hasGone = false;
+  for (var k in gone) { if (gone[k]) { hasGone = true; break; } }
+  if (hasGone || births.length) {
+    var kept = [];
+    for (i = 0; i < fruits.length; i++) if (!gone[i]) kept.push(fruits[i]);
+    fruits = kept.concat(births);
+  }
+}
+
+function checkOverflow(dt) {
+  var danger = false, i, f;
+  for (i = 0; i < fruits.length; i++) {
+    f = fruits[i];
+    // 낙하 직후(0.8초 이내) 튀어오른 경우는 제외, 거의 정지한 것만 판정
+    if (f.age > 0.8 && (f.vx*f.vx + f.vy*f.vy) < 8100 && f.y - f.r < LINE_Y) {
+      danger = true; break;
+    }
+  }
+  if (danger) overflowT += dt;
+  else overflowT = Math.max(0, overflowT - dt * 2);
+  if (overflowT >= OVERFLOW_LIMIT) gameOver();
+}
+
+function step(dt) {
+  if (over) return;
+  if (dropCd > 0) dropCd -= dt;
+  var n = 2, h = dt / n;
+  for (var s = 0; s < n; s++) substep(h);
+  checkMerges();
+  // 파티클
+  var i, p;
+  for (i = particles.length - 1; i >= 0; i--) {
+    p = particles[i];
+    p.vy += 500 * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (i = floats.length - 1; i >= 0; i--) {
+    var fl = floats[i];
+    fl.y -= 40 * dt; fl.life -= dt;
+    if (fl.life <= 0) floats.splice(i, 1);
+  }
+  checkOverflow(dt);
+  if (warnEl) {
+    if (overflowT > 0.05) {
+      warnEl.style.display = "block";
+      warnTEl.textContent = Math.max(0, OVERFLOW_LIMIT - overflowT).toFixed(1);
+    } else warnEl.style.display = "none";
+  }
+}
+
+/* ================= 게임 진행 ================= */
+function drop() {
+  if (over || dropCd > 0) return;
+  var t = curTier, r = TIERS[t].r;
+  fruits.push({x:clamp(aimX, r, W - r), y:DROP_Y, vx:0, vy:80,
+    t:t, r:r, age:0, mcd:0.25});
+  curTier = nextTier; nextTier = rndTier();
+  dropCd = DROP_CD;
+  blip(260, 0.1);
+  drawPreview();
+}
+function gameOver() {
+  if (over) return;
+  over = true;
+  var isNew = score > best;
+  if (isNew) {
+    best = score;
+    try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {}
+  }
+  if (scoreEl) {
+    document.getElementById("finalScore").textContent = score.toLocaleString("ko-KR");
+    document.getElementById("finalBest").textContent = best.toLocaleString("ko-KR");
+    document.getElementById("newBest").style.display = isNew && score > 0 ? "block" : "none";
+    overEl.classList.add("show");
+  }
+  blip(140, 0.5);
+  updateHUD();
+}
+function restart() {
+  fruits = []; particles = []; floats = [];
+  score = 0; combo = 0; lastMergeT = -10;
+  overflowT = 0; over = false; dropCd = 0; aimX = W / 2;
+  curTier = rndTier(); nextTier = rndTier();
+  if (overEl) overEl.classList.remove("show");
+  if (warnEl) warnEl.style.display = "none";
+  drawPreview(); updateHUD();
+}
+function updateHUD() {
+  if (!scoreEl) return;
+  scoreEl.textContent = score.toLocaleString("ko-KR");
+  bestEl.textContent = best.toLocaleString("ko-KR");
+}
+
+/* ================= 렌더 ================= */
+function drawFruit(c, x, y, r, t) {
+  var T = TIERS[t];
+  var g = c.createRadialGradient(x - r*0.35, y - r*0.4, r*0.15, x, y, r*1.05);
+  g.addColorStop(0, "rgba(255,255,255,0.55)");
+  g.addColorStop(0.35, T.color);
+  g.addColorStop(1, T.dark);
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI*2);
+  c.fillStyle = g; c.fill();
+  c.lineWidth = Math.max(1.5, r*0.06);
+  c.strokeStyle = T.dark; c.stroke();
+  if (t === 10) {  // 수박 줄무늬
+    c.strokeStyle = "rgba(20,80,40,0.5)";
+    c.lineWidth = Math.max(2, r*0.055);
+    for (var k = -2; k <= 2; k++) {
+      var sx = x + k*r*0.3;
+      c.beginPath(); c.moveTo(sx, y - r*0.9);
+      c.quadraticCurveTo(sx + r*0.14, y, sx, y + r*0.9);
+      c.stroke();
+    }
+  }
+  // 광택
+  c.beginPath();
+  c.ellipse(x - r*0.32, y - r*0.42, r*0.22, r*0.13, -0.5, 0, Math.PI*2);
+  c.fillStyle = "rgba(255,255,255,0.5)"; c.fill();
+  if (r >= 30) {
+    c.font = "800 " + Math.round(Math.min(r*0.38, 22)) + "px system-ui, sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillStyle = "rgba(255,255,255,0.95)";
+    c.fillText(T.name, x, y + 1);
+  }
+}
+function draw() {
+  if (!ctx) return;
+  var i, f;
+  // 배경
+  var bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#fff8ee"); bg.addColorStop(1, "#ffe3ba");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  // 경고선
+  var danger = overflowT > 0.05;
+  ctx.save();
+  ctx.strokeStyle = danger ? "#d00000" : "rgba(208,0,0,0.45)";
+  ctx.lineWidth = danger ? 3 : 2;
+  ctx.setLineDash([8, 6]);
+  if (danger) ctx.globalAlpha = 0.6 + 0.4 * Math.sin(nowS() * 12);
+  ctx.beginPath(); ctx.moveTo(0, LINE_Y); ctx.lineTo(W, LINE_Y); ctx.stroke();
+  ctx.restore();
+  ctx.font = "12px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = danger ? "#d00000" : "rgba(150,90,60,0.7)";
+  ctx.fillText("⚠ 경고선", 8, LINE_Y - 6);
+  // 조준 가이드
+  if (!over) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(120,80,40,0.35)";
+    ctx.setLineDash([4, 6]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(aimX, DROP_Y + TIERS[curTier].r + 6); ctx.lineTo(aimX, H); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = 0.55; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.arc(aimX, DROP_Y, TIERS[curTier].r, 0, Math.PI*2);
+    ctx.strokeStyle = "#8a5a2b"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+    drawFruit(ctx, aimX, DROP_Y, TIERS[curTier].r, curTier);
+    ctx.save(); ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.arc(aimX, DROP_Y, TIERS[curTier].r, 0, Math.PI*2);
+    ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
+  }
+  // 과일
+  for (i = 0; i < fruits.length; i++) {
+    f = fruits[i];
+    drawFruit(ctx, f.x, f.y, f.r, f.t);
+  }
+  // 파티클
+  for (i = 0; i < particles.length; i++) {
+    var p = particles[i];
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color; ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // 점수 플로팅 텍스트
+  ctx.textAlign = "center";
+  for (i = 0; i < floats.length; i++) {
+    var fl = floats[i];
+    ctx.globalAlpha = Math.min(1, fl.life * 2);
+    ctx.font = "800 " + fl.size + "px system-ui, sans-serif";
+    ctx.fillStyle = fl.color;
+    ctx.fillText(fl.txt, fl.x, fl.y);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawPreview() {
+  if (!previewCtx) return;
+  var c = previewCtx, t = nextTier, r = TIERS[t].r;
+  c.clearRect(0, 0, 152, 152);
+  var s = 58 / r;
+  c.save(); c.scale(s, s);
+  drawFruit(c, 76 / s, 76 / s, r, t);
+  c.restore();
+  if (nextNameEl) nextNameEl.textContent = TIERS[t].name;
+}
+
+/* ================= DOM 초기화 ================= */
+function toLogicalX(clientX) {
+  var rect = canvas.getBoundingClientRect();
+  return (clientX - rect.left) / rect.width * W;
+}
+function init() {
+  canvas = document.getElementById("game");
+  scoreEl = document.getElementById("score");
+  bestEl = document.getElementById("best");
+  nextNameEl = document.getElementById("nextName");
+  overEl = document.getElementById("over");
+  warnEl = document.getElementById("warn");
+  warnTEl = document.getElementById("warnT");
+  comboEl = document.getElementById("combo");
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var pc = document.getElementById("preview");
+  previewCtx = pc.getContext("2d");
+  previewCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+  curTier = rndTier(); nextTier = rndTier();
+  drawPreview(); updateHUD();
+
+  canvas.addEventListener("pointerdown", function (e) {
+    e.preventDefault(); audio();
+    aimX = clamp(toLogicalX(e.clientX), 0, W);
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    aimX = clamp(toLogicalX(e.clientX), 0, W);
+  });
+  canvas.addEventListener("pointerup", function (e) {
+    aimX = clamp(toLogicalX(e.clientX), 0, W);
+    drop();
+  });
+  canvas.addEventListener("pointercancel", function () {});
+  document.getElementById("restart").addEventListener("click", function () { restart(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") aimX = clamp(aimX - 14, 0, W);
+    else if (e.key === "ArrowRight") aimX = clamp(aimX + 14, 0, W);
+    else if ((e.key === " " || e.key === "ArrowDown" || e.key === "Enter") && !over) { e.preventDefault(); drop(); }
+    else if (e.key === "Enter" && over) restart();
+  });
+
+  var last = performance.now();
+  function frame(nowMs) {
+    requestAnimationFrame(frame);
+    var dt = Math.min((nowMs - last) / 1000, 1 / 30);
+    last = nowMs;
+    if (!over) step(dt);
+    draw();
+  }
+  requestAnimationFrame(frame);
+}
+if (typeof document !== "undefined" && document.getElementById) init();
+
+/* ================= 테스트 훅 (브라우저 동작에 영향 없음) ================= */
+if (typeof globalThis !== "undefined") {
+  globalThis.__dropMergeTest = {
+    step: step, drop: drop, restart: restart, checkMerges: checkMerges,
+    setAim: function (x) { aimX = x; },
+    spawn: function (x, y, t, opts) {
+      var f = {x:x, y:y, vx:0, vy:0, t:t, r:TIERS[t].r, age:1, mcd:0};
+      if (opts) for (var k in opts) f[k] = opts[k];
+      fruits.push(f); return f;
+    },
+    state: function () {
+      return {fruits:fruits, score:score, over:over, combo:combo,
+              overflowT:overflowT, curTier:curTier, nextTier:nextTier, best:best};
+    },
+    tiers: TIERS
+  };
+}
+</script>
+</body>
+</html>
